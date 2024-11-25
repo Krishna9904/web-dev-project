@@ -1,0 +1,427 @@
+server.js
+const express = require("express");
+const redis = require("redis");
+const cors = require("cors"); // Import the cors package
+
+const app = express();
+const PORT = 3000;
+
+// Enable CORS for all domains (or specify your React app URL for security)
+app.use(cors()); // Use CORS middleware
+
+// Middleware to parse JSON requests
+app.use(express.json());
+
+// Create a Redis client
+const client = redis.createClient({
+  host: "127.0.0.1",
+  port: 6379,
+});
+
+client.on("error", (err) => {
+  console.error("Redis connection error:", err);
+});
+
+(async () => {
+  try {
+    await client.connect(); // Connect to Redis
+    console.log("Connected to Redis");
+
+    // Route to set data in Redis
+    app.post("/set", async (req, res) => {
+      const { key, value } = req.body;
+
+      if (!key || !value) {
+        return res.status(400).json({ error: "Key and value are required" });
+      }
+
+      try {
+        const response = await client.set(key, value);
+        res.status(200).json({ message: "Data saved to Redis", response });
+      } catch (error) {
+        console.error("Error setting data in Redis:", error);
+        res.status(500).json({ error: "Failed to save data to Redis" });
+      }
+    });
+
+    // Route to get data from Redis
+    app.get("/get/:key", async (req, res) => {
+      const { key } = req.params;
+
+      try {
+        const value = await client.get(key);
+
+        if (value === null) {
+          return res.status(404).json({ error: "Key not found" });
+        }
+
+        res.status(200).json({ key, value });
+      } catch (error) {
+        console.error("Error retrieving data from Redis:", error);
+        res.status(500).json({ error: "Failed to retrieve data from Redis" });
+      }
+    });
+
+    // Route to delete a key from Redis
+    app.delete("/delete/:key", async (req, res) => {
+      const { key } = req.params;
+
+      try {
+        const response = await client.del(key);
+
+        if (response === 0) {
+          return res
+            .status(404)
+            .json({ error: "Key not found or already deleted" });
+        }
+
+        res.status(200).json({ message: "Key deleted successfully" });
+      } catch (error) {
+        console.error("Error deleting key from Redis:", error);
+        res.status(500).json({ error: "Failed to delete key from Redis" });
+      }
+    });
+
+    // Start the Express server
+    app.listen(PORT, () => {
+      console.log(`Server is running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to connect to Redis:", error);
+    process.exit(1); // Exit the process if Redis connection fails
+  }
+})();
+
+
+app.js
+import React, { useState } from "react";
+
+const App = () => {
+  const [key, setKey] = useState("");
+  const [value, setValue] = useState("");
+  const [response, setResponse] = useState("");
+  const [retrievedValue, setRetrievedValue] = useState("");
+
+  // Function to handle setting a key-value pair
+  const handleSet = async () => {
+    try {
+      const res = await fetch("http://localhost:3000/set", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ key, value }),
+      });
+
+      const data = await res.json();
+      setResponse(data.message || "Error occurred");
+    } catch (error) {
+      console.error("Error setting data:", error);
+      setResponse("Failed to set data.");
+    }
+  };
+
+  // Function to handle retrieving a value by key
+  const handleGet = async () => {
+    try {
+      const res = await fetch(`http://localhost:3000/get/${key}`);
+      const data = await res.json();
+
+      if (data.error) {
+        setRetrievedValue(data.error);
+      } else {
+        setRetrievedValue(`Value for "${key}": ${data.value}`);
+      }
+    } catch (error) {
+      console.error("Error retrieving data:", error);
+      setRetrievedValue("Failed to retrieve data.");
+    }
+  };
+
+  // Function to handle deleting a key
+  const handleDelete = async () => {
+    try {
+      const res = await fetch(`http://localhost:3000/delete/${key}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+      setResponse(data.message || data.error || "Error occurred");
+    } catch (error) {
+      console.error("Error deleting key:", error);
+      setResponse("Failed to delete key.");
+    }
+  };
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <h1>Redis Frontend</h1>
+      <div style={{ marginBottom: "20px" }}>
+        <label>
+          Key:{" "}
+          <input
+            type="text"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            style={{ marginRight: "10px" }}
+          />
+        </label>
+        <label>
+          Value:{" "}
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
+        </label>
+      </div>
+      <div>
+        <button onClick={handleSet} style={{ marginRight: "10px" }}>
+          Set Key
+        </button>
+        <button onClick={handleGet} style={{ marginRight: "10px" }}>
+          Get Key
+        </button>
+        <button onClick={handleDelete}>Delete Key</button>
+      </div>
+      <div style={{ marginTop: "20px" }}>
+        <h3>Response:</h3>
+        <p>{response}</p>
+        <h3>Retrieved Value:</h3>
+        <p>{retrievedValue}</p>
+      </div>
+    </div>
+  );
+};
+
+export default App;
+
+
+server.js
+const express = require("express");
+const redis = require("redis");
+const cors = require("cors");
+
+const app = express();
+const PORT = 3000;
+
+// Enable CORS for all domains (or specify your React app URL for security)
+app.use(cors());
+
+// Middleware to parse JSON requests
+app.use(express.json());
+
+// Create a Redis client
+const client = redis.createClient({
+  host: "127.0.0.1",
+  port: 6379,
+});
+
+client.on("error", (err) => {
+  console.error("Redis connection error:", err);
+});
+
+(async () => {
+  try {
+    await client.connect(); // Connect to Redis
+    console.log("Connected to Redis");
+
+    // Route to save question and feedback rating in Redis
+    app.post("/save-feedback", async (req, res) => {
+      const { question, rating } = req.body;
+
+      if (!question || !rating || rating < 1 || rating > 5) {
+        return res.status(400).json({
+          error: "Question and rating (1-5) are required",
+        });
+      }
+
+      try {
+        const response = await client.set(question, rating);
+        res.status(200).json({
+          message: "Feedback saved successfully",
+          response,
+        });
+      } catch (error) {
+        console.error("Error saving feedback:", error);
+        res.status(500).json({
+          error: "Failed to save feedback to Redis",
+        });
+      }
+    });
+
+    // Route to get feedback rating by question
+    app.get("/get-feedback/:question", async (req, res) => {
+      const { question } = req.params;
+
+      try {
+        const rating = await client.get(question);
+
+        if (rating === null) {
+          return res.status(404).json({
+            error: "Question not found",
+          });
+        }
+
+        res.status(200).json({
+          question,
+          rating,
+        });
+      } catch (error) {
+        console.error("Error retrieving feedback:", error);
+        res.status(500).json({
+          error: "Failed to retrieve feedback from Redis",
+        });
+      }
+    });
+
+    // Route to delete feedback by question
+    app.delete("/delete-feedback/:question", async (req, res) => {
+      const { question } = req.params;
+
+      try {
+        const response = await client.del(question);
+
+        if (response === 0) {
+          return res.status(404).json({
+            error: "Question not found or already deleted",
+          });
+        }
+
+        res.status(200).json({
+          message: "Feedback deleted successfully",
+        });
+      } catch (error) {
+        console.error("Error deleting feedback:", error);
+        res.status(500).json({
+          error: "Failed to delete feedback from Redis",
+        });
+      }
+    });
+
+    // Start the Express server
+    app.listen(PORT, () => {
+      console.log(`Server is running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to connect to Redis:", error);
+    process.exit(1); // Exit the process if Redis connection fails
+  }
+})();
+app.js 
+
+import React, { useState } from "react";
+
+const App = () => {
+  const [question, setQuestion] = useState("");
+  const [rating, setRating] = useState(1);
+  const [response, setResponse] = useState("");
+  const [retrievedFeedback, setRetrievedFeedback] = useState("");
+
+  // Function to handle saving question and feedback rating
+  const handleSaveFeedback = async () => {
+    if (rating < 1 || rating > 5) {
+      setResponse("Please select a rating between 1 and 5.");
+      return;
+    }
+
+    try {
+      const res = await fetch("http://localhost:3000/save-feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question, rating }),
+      });
+
+      const data = await res.json();
+      setResponse(data.message || "Error occurred");
+    } catch (error) {
+      console.error("Error saving feedback:", error);
+      setResponse("Failed to save feedback.");
+    }
+  };
+
+  // Function to handle retrieving feedback rating by question
+  const handleGetFeedback = async () => {
+    try {
+      const res = await fetch(`http://localhost:3000/get-feedback/${question}`);
+      const data = await res.json();
+
+      if (data.error) {
+        setRetrievedFeedback(data.error);
+      } else {
+        setRetrievedFeedback(
+          `Rating for question "${question}": ${data.rating}`
+        );
+      }
+    } catch (error) {
+      console.error("Error retrieving feedback:", error);
+      setRetrievedFeedback("Failed to retrieve feedback.");
+    }
+  };
+
+  // Function to handle deleting feedback by question
+  const handleDeleteFeedback = async () => {
+    try {
+      const res = await fetch(
+        `http://localhost:3000/delete-feedback/${question}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = await res.json();
+      setResponse(data.message || data.error || "Error occurred");
+    } catch (error) {
+      console.error("Error deleting feedback:", error);
+      setResponse("Failed to delete feedback.");
+    }
+  };
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <h1>Question Feedback System</h1>
+      <div style={{ marginBottom: "20px" }}>
+        <label>
+          Question:{" "}
+          <input
+            type="text"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            style={{ marginRight: "10px" }}
+          />
+        </label>
+        <label>
+          Rating (1-5):{" "}
+          <input
+            type="number"
+            value={rating}
+            onChange={(e) => setRating(Number(e.target.value))}
+            min="1"
+            max="5"
+            style={{ marginLeft: "10px" }}
+          />
+        </label>
+      </div>
+      <div>
+        <button onClick={handleSaveFeedback} style={{ marginRight: "10px" }}>
+          Save Feedback
+        </button>
+        <button onClick={handleGetFeedback} style={{ marginRight: "10px" }}>
+          Get Feedback
+        </button>
+        <button onClick={handleDeleteFeedback}>Delete Feedback</button>
+      </div>
+      <div style={{ marginTop: "20px" }}>
+        <h3>Response:</h3>
+        <p>{response}</p>
+        <h3>Retrieved Feedback:</h3>
+        <p>{retrievedFeedback}</p>
+      </div>
+    </div>
+  );
+};
+
+export default App;
+
