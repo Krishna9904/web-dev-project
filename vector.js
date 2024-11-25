@@ -6,6 +6,7 @@ const EmbeddingApp = () => {
   const [inputText, setInputText] = useState("");
   const [embeddings, setEmbeddings] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const generateEmbeddings = async () => {
     if (!inputText.trim()) {
@@ -14,15 +15,27 @@ const EmbeddingApp = () => {
     }
 
     setLoading(true);
+    setError("");
+    setEmbeddings([]);
+
     try {
-      const model = await use.load(); // Load the Universal Sentence Encoder model
-      const embeddingTensor = await model.embed([inputText]); // Generate embeddings
-      const embeddingArray = embeddingTensor.arraySync()[0]; // Extract the embedding as an array
+      // Log TensorFlow.js backend info
+      console.log("TensorFlow.js backend:", tf.getBackend());
+      console.log("Loading Universal Sentence Encoder model...");
+
+      // Load the Universal Sentence Encoder model
+      const model = await use.load();
+      console.log("Model loaded successfully.");
+
+      // Generate embeddings
+      const embeddingTensor = await model.embed([inputText]);
+      const embeddingArray = embeddingTensor.arraySync()[0]; // Extract the embeddings
+      embeddingTensor.dispose(); // Dispose the tensor to free memory
 
       setEmbeddings(embeddingArray);
-    } catch (error) {
-      console.error("Error generating embeddings:", error);
-      alert("Failed to generate embeddings. Please try again.");
+    } catch (err) {
+      console.error("Error generating embeddings:", err);
+      setError("Failed to generate embeddings. Please check the console for details.");
     } finally {
       setLoading(false);
     }
@@ -58,6 +71,7 @@ const EmbeddingApp = () => {
       >
         {loading ? "Generating..." : "Generate Embeddings"}
       </button>
+      {error && <p style={{ color: "red" }}>{error}</p>}
       <div>
         {embeddings.length > 0 && (
           <>
